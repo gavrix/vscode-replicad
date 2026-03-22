@@ -1,17 +1,32 @@
 {
   "name": "vscode-replicad-preview",
   "displayName": "Replicad Preview",
-  "description": "Live Replicad preview beside the native VS Code editor.",
+  "description": "Preview Replicad models beside the native VS Code editor.",
   "version": "0.0.1",
   "publisher": "gavrix",
-  "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gavrix/vscode-replicad.git"
+  },
+  "homepage": "https://github.com/gavrix/vscode-replicad",
+  "bugs": {
+    "url": "https://github.com/gavrix/vscode-replicad/issues"
+  },
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
     "Visualization",
     "Other"
+  ],
+  "keywords": [
+    "replicad",
+    "cad",
+    "preview",
+    "3d",
+    "opencascade"
   ],
   "activationEvents": [
     "onCommand:replicadPreview.openPreview",
@@ -83,6 +98,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -w -p ./",
     "prepare:runtime": "rm -rf runtime/node_modules runtime/package-lock.json && cd runtime && npm install --omit=dev",
+    "build": "npm run package:vsix",
     "package:vsix": "npm run prepare:runtime && vsce package --no-dependencies --allow-missing-repository --skip-license",
     "vscode:prepublish": "npm run compile"
   },
