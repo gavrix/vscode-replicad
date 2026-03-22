@@ -211,12 +211,6 @@ function renderMeshes(entries) {
 
     const mesh = new THREE.Mesh(geometry, material);
     meshGroup.add(mesh);
-
-    const wire = new THREE.LineSegments(
-      new THREE.WireframeGeometry(geometry),
-      new THREE.LineBasicMaterial({ color: 0x111111, transparent: true, opacity: 0.25 })
-    );
-    meshGroup.add(wire);
   });
 
   scene.add(meshGroup);

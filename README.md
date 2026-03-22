@@ -4,6 +4,8 @@ Preview Replicad models beside the native VS Code editor.
 
 This extension keeps the normal text editor and opens a rendered Replicad preview in a side webview panel, more like Markdown Preview than a custom editor. Replacing the real editor just to show CAD would be a silly own-goal.
 
+![Replicad Preview demo](media/readme/demo.png)
+
 ## Features
 
 - keeps the native VS Code editor intact

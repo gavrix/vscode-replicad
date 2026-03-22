@@ -127,7 +127,11 @@ class PreviewController implements vscode.Disposable {
         this.scheduleUpdate(document, true);
       }),
       vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (!editor || !this.shouldAutoOpen()) {
+        if (!editor) {
+          return;
+        }
+
+        if (!this.panel && !this.shouldAutoOpen()) {
           return;
         }
 
