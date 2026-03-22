@@ -38,7 +38,10 @@ Default:
 ```
 
 ### `replicadPreview.debounceMs`
-Debounce delay before preview updates.
+Debounce delay for preview updates while typing.
+
+This only applies when `replicadPreview.refreshOnSaveOnly` is set to `false`.
+In the default save-only mode, rebuilds happen immediately on save.
 
 Default: `250`
 
