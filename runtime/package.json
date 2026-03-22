@@ -1,0 +1,12 @@
+{
+  "name": "vscode-replicad-preview-runtime",
+  "private": true,
+  "description": "Runtime dependencies packaged with the VS Code extension.",
+  "license": "MIT",
+  "dependencies": {
+    "esbuild": "^0.27.4",
+    "replicad": "^0.21.1",
+    "replicad-opencascadejs": "^0.21.0",
+    "three": "^0.183.2"
+  }
+}
