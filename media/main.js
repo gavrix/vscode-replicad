@@ -12,13 +12,33 @@ const viewer = document.getElementById('viewer');
 const svgHost = document.getElementById('svgHost');
 const emptyState = document.getElementById('emptyState');
 const gizmoHost = document.getElementById('gizmoHost');
+const sectionPanel = document.getElementById('sectionPanel');
+const sectionToggle = document.getElementById('sectionToggle');
+const sectionCollapse = document.getElementById('sectionCollapse');
+const sectionSlider = document.getElementById('sectionSlider');
+const sectionAxisButtons = Array.from(document.querySelectorAll('[data-section-axis]'));
 
 let latestRequestId = 0;
 let meshGroup = null;
+let currentBounds = null;
+
+const sectionState = {
+  enabled: false,
+  expanded: false,
+  axis: 'z',
+  plane: new THREE.Plane(new THREE.Vector3(0, 0, -1), 0),
+  sliderValue: 0,
+  range: { min: -50, max: 50 },
+  center: 0,
+  surfaceMaterials: [],
+  capMaterials: [],
+  capMeshes: [],
+};
 
 console.info('booting preview webview');
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, stencil: true });
+renderer.localClippingEnabled = true;
 renderer.setPixelRatio(window.devicePixelRatio || 1);
 viewer.appendChild(renderer.domElement);
 
@@ -48,6 +68,7 @@ const gizmoRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 gizmoRenderer.setPixelRatio(window.devicePixelRatio || 1);
 gizmoHost.appendChild(gizmoRenderer.domElement);
 const gizmoScene = new THREE.Scene();
+const sectionHatchTexture = createSectionHatchTexture();
 const gizmoCamera = new THREE.OrthographicCamera(-1.4, 1.4, 1.4, -1.4, 0.1, 10);
 gizmoCamera.position.set(0, 0, 3);
 const gizmoRoot = new THREE.Group();
@@ -58,10 +79,40 @@ gizmoLight.position.set(2, 2, 3);
 gizmoScene.add(gizmoLight);
 createAxisWidget(gizmoRoot);
 
+sectionToggle.addEventListener('click', () => {
+  sectionState.expanded = true;
+  sectionState.enabled = true;
+  updateSectionUi();
+  applySectionState();
+});
+
+sectionCollapse.addEventListener('click', () => {
+  sectionState.expanded = false;
+  sectionState.enabled = false;
+  updateSectionUi();
+  applySectionState();
+});
+
+sectionAxisButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    sectionState.axis = button.dataset.sectionAxis || 'z';
+    resetSectionSliderToCenter();
+    updateSectionRange();
+    updateSectionUi();
+    applySectionState();
+  });
+});
+
+sectionSlider.addEventListener('input', () => {
+  sectionState.sliderValue = Number(sectionSlider.value);
+  applySectionState();
+});
+
 const resizeObserver = new ResizeObserver(() => resizeRenderer());
 resizeObserver.observe(viewer);
 resizeObserver.observe(gizmoHost);
 resizeRenderer();
+updateSectionUi();
 animate();
 
 window.addEventListener('message', (event) => {
@@ -174,6 +225,8 @@ function renderSvg(entries) {
   svgHost.classList.remove('hidden');
   viewer.classList.add('hidden');
   gizmoHost.classList.add('hidden');
+  sectionPanel.classList.add('hidden');
+  sectionToggle.classList.add('hidden');
   emptyState.classList.add('hidden');
 }
 
@@ -185,6 +238,9 @@ function renderMeshes(entries) {
   clearScene();
 
   meshGroup = new THREE.Group();
+  sectionState.surfaceMaterials = [];
+  sectionState.capMaterials = [];
+  sectionState.capMeshes = [];
 
   entries.forEach((entry, index) => {
     const geometry = new THREE.BufferGeometry();
@@ -199,25 +255,88 @@ function renderMeshes(entries) {
 
     const color = new THREE.Color(entry.color || defaultColor(index));
     const opacity = typeof entry.opacity === 'number' ? entry.opacity : 1;
-
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      metalness: 0.08,
-      roughness: 0.7,
-      transparent: opacity < 1,
-      opacity,
-      side: THREE.DoubleSide,
-    });
-
-    const mesh = new THREE.Mesh(geometry, material);
-    meshGroup.add(mesh);
+    const sectioned = createSectionedMesh(geometry, color, opacity, index * 10);
+    meshGroup.add(sectioned.group);
+    sectionState.surfaceMaterials.push(sectioned.surfaceMaterial);
+    sectionState.capMaterials.push(sectioned.capMaterial);
+    sectionState.capMeshes.push(sectioned.capMesh);
   });
 
   scene.add(meshGroup);
   frameObject(meshGroup);
+  updateSectionRange();
+  updateSectionUi();
+  applySectionState();
+}
+
+function createSectionedMesh(geometry, color, opacity, renderBase) {
+  const group = new THREE.Group();
+
+  const surfaceMaterial = new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.08,
+    roughness: 0.7,
+    transparent: opacity < 1,
+    opacity,
+    side: THREE.DoubleSide,
+  });
+
+  const visibleMesh = new THREE.Mesh(geometry, surfaceMaterial);
+  visibleMesh.renderOrder = renderBase + 6;
+  group.add(visibleMesh);
+
+  const stencilBack = createStencilMesh(geometry, THREE.BackSide, THREE.IncrementWrapStencilOp);
+  stencilBack.renderOrder = renderBase + 1;
+  group.add(stencilBack);
+
+  const stencilFront = createStencilMesh(geometry, THREE.FrontSide, THREE.DecrementWrapStencilOp);
+  stencilFront.renderOrder = renderBase + 2;
+  group.add(stencilFront);
+
+  const capMaterial = new THREE.MeshStandardMaterial({
+    color: 0xe8ddc7,
+    metalness: 0.02,
+    roughness: 0.92,
+    side: THREE.DoubleSide,
+    map: sectionHatchTexture,
+    stencilWrite: true,
+    stencilRef: 0,
+    stencilFunc: THREE.NotEqualStencilFunc,
+    stencilFail: THREE.ReplaceStencilOp,
+    stencilZFail: THREE.ReplaceStencilOp,
+    stencilZPass: THREE.ReplaceStencilOp,
+  });
+  const capMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), capMaterial);
+  capMesh.renderOrder = renderBase + 3;
+  capMesh.onAfterRender = (currentRenderer) => currentRenderer.clearStencil();
+  group.add(capMesh);
+
+  return { group, surfaceMaterial, capMaterial, capMesh };
+}
+
+function createStencilMesh(geometry, side, stencilOp) {
+  const material = new THREE.MeshBasicMaterial({
+    side,
+    clippingPlanes: [sectionState.plane],
+    depthTest: false,
+    depthWrite: false,
+    colorWrite: false,
+    stencilWrite: true,
+    stencilFunc: THREE.AlwaysStencilFunc,
+    stencilFail: stencilOp,
+    stencilZFail: stencilOp,
+    stencilZPass: stencilOp,
+  });
+
+  return new THREE.Mesh(geometry, material);
 }
 
 function clearScene() {
+  currentBounds = null;
+  sectionState.surfaceMaterials = [];
+  sectionState.capMaterials = [];
+  sectionState.capMeshes = [];
+
   if (!meshGroup) return;
   scene.remove(meshGroup);
   meshGroup.traverse((child) => {
@@ -235,6 +354,8 @@ function showEmpty(text) {
   emptyState.classList.remove('hidden');
   svgHost.classList.add('hidden');
   gizmoHost.classList.add('hidden');
+  sectionPanel.classList.add('hidden');
+  sectionToggle.classList.add('hidden');
 }
 
 function showOverlayError(text) {
@@ -257,6 +378,7 @@ function hideActivity() {
 
 function frameObject(object) {
   const box = new THREE.Box3().setFromObject(object);
+  currentBounds = box.clone();
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxSize = Math.max(size.x, size.y, size.z) || 10;
@@ -293,6 +415,149 @@ function animate() {
 
 function syncGizmo() {
   gizmoRoot.quaternion.copy(camera.quaternion).invert();
+}
+
+function updateSectionRange() {
+  if (!currentBounds) {
+    sectionState.range = { min: -50, max: 50 };
+    sectionState.center = 0;
+    sectionSlider.min = '-50';
+    sectionSlider.max = '50';
+    sectionSlider.step = '0.1';
+    sectionSlider.value = '0';
+    sectionState.sliderValue = 0;
+    return;
+  }
+
+  const min = currentBounds.min[sectionState.axis];
+  const max = currentBounds.max[sectionState.axis];
+  const safeMin = Number.isFinite(min) ? min : -50;
+  const safeMax = Number.isFinite(max) ? max : 50;
+  const center = (safeMin + safeMax) / 2;
+  const halfSpan = Math.max(((safeMax - safeMin) / 2) * 1.2, 0.01);
+  sectionState.center = center;
+  sectionState.range = { min: -halfSpan, max: halfSpan };
+  sectionSlider.min = (-halfSpan).toFixed(2);
+  sectionSlider.max = halfSpan.toFixed(2);
+  sectionSlider.step = Math.max((halfSpan * 2) / 400, 0.01).toFixed(3);
+  sectionState.sliderValue = clamp(sectionState.sliderValue, -halfSpan, halfSpan);
+  sectionSlider.value = String(sectionState.sliderValue);
+}
+
+function resetSectionSliderToCenter() {
+  if (!currentBounds) {
+    sectionState.sliderValue = 0;
+    return;
+  }
+  sectionState.sliderValue = 0;
+  sectionSlider.value = '0';
+}
+
+function updateSectionUi() {
+  const canSection = !!meshGroup;
+  sectionToggle.classList.toggle('hidden', !canSection || sectionState.expanded);
+  sectionPanel.classList.toggle('hidden', !canSection || !sectionState.expanded);
+  sectionToggle.classList.toggle('active', sectionState.enabled);
+  sectionAxisButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.sectionAxis === sectionState.axis);
+    button.disabled = !canSection;
+  });
+  sectionSlider.disabled = !sectionState.enabled;
+}
+
+function applySectionState() {
+  const clippingPlanes = sectionState.enabled ? [updateSectionPlane()] : [];
+
+  sectionState.surfaceMaterials.forEach((material) => {
+    material.clippingPlanes = clippingPlanes;
+    material.needsUpdate = true;
+  });
+
+  sectionState.capMaterials.forEach((material) => {
+    material.clippingPlanes = [];
+    material.needsUpdate = true;
+  });
+
+  sectionState.capMeshes.forEach((mesh) => {
+    mesh.visible = sectionState.enabled;
+  });
+
+  if (!meshGroup || !sectionState.enabled) {
+    return;
+  }
+
+  const maxSize = Math.max(
+    currentBounds?.max.x - currentBounds?.min.x || 1,
+    currentBounds?.max.y - currentBounds?.min.y || 1,
+    currentBounds?.max.z - currentBounds?.min.z || 1
+  );
+  const planeSize = maxSize * 2.4;
+  const planePoint = new THREE.Vector3();
+  sectionState.plane.coplanarPoint(planePoint);
+  const planeLookTarget = planePoint.clone().sub(sectionState.plane.normal);
+
+  sectionState.capMeshes.forEach((mesh) => {
+    mesh.geometry.dispose();
+    mesh.geometry = new THREE.PlaneGeometry(planeSize, planeSize);
+    mesh.position.copy(planePoint);
+    mesh.lookAt(planeLookTarget);
+  });
+}
+
+function updateSectionPlane() {
+  const normal = baseNormalForAxis(sectionState.axis);
+  const offset = sectionState.center + sectionState.sliderValue;
+  const point = new THREE.Vector3();
+  point[sectionState.axis] = offset;
+  sectionState.plane.setFromNormalAndCoplanarPoint(normal, point);
+  return sectionState.plane;
+}
+
+function baseNormalForAxis(axis) {
+  switch (axis) {
+    case 'x':
+      return new THREE.Vector3(-1, 0, 0);
+    case 'y':
+      return new THREE.Vector3(0, -1, 0);
+    case 'z':
+    default:
+      return new THREE.Vector3(0, 0, -1);
+  }
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function createSectionHatchTexture() {
+  const size = 64;
+  const spacing = 16;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#e8ddc7';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = '#6f6658';
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.7;
+
+  for (let offset = -size; offset <= size; offset += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(offset, size);
+    ctx.lineTo(offset + size, 0);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(10, 10);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 function createAxisWidget(root) {

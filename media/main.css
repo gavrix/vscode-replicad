@@ -144,6 +144,113 @@ h2 {
   background: radial-gradient(circle at center, rgba(255,255,255,0.04), rgba(255,255,255,0));
 }
 
+.section-fab {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 85%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 88%, transparent);
+  color: var(--vscode-editor-foreground);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.section-fab:hover {
+  background: color-mix(in srgb, var(--vscode-editor-background) 82%, white 18%);
+}
+
+.section-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  min-width: 186px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 85%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.section-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-header-row {
+  justify-content: space-between;
+}
+
+.section-heading {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.section-axis-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.section-slider-row {
+  display: grid;
+  gap: 6px;
+}
+
+.section-btn,
+.section-icon-btn {
+  appearance: none;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 90%, white 10%);
+  color: var(--vscode-editor-foreground);
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.section-icon-btn {
+  min-width: 26px;
+  padding: 4px 8px;
+}
+
+.section-btn:hover:not(:disabled),
+.section-icon-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--vscode-editor-background) 82%, white 18%);
+}
+
+.section-btn.active {
+  background: color-mix(in srgb, var(--vscode-button-background, #0e639c) 82%, white 18%);
+  color: var(--vscode-button-foreground, white);
+}
+
+.section-btn:disabled,
+.section-icon-btn:disabled,
+.section-slider:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.section-slider {
+  width: 100%;
+  margin: 0;
+}
+
 .viewer canvas,
 .gizmo-host canvas {
   display: block;

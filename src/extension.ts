@@ -432,6 +432,21 @@ class PreviewController implements vscode.Disposable {
     <main class="content content-single">
       <section class="viewer-panel panel-fill viewer-panel-full">
         <div id="viewer" class="viewer"></div>
+        <button id="sectionToggle" class="section-fab hidden" type="button" title="Section cut" aria-label="Section cut">◫</button>
+        <div id="sectionPanel" class="section-panel hidden">
+          <div class="section-row section-header-row">
+            <div class="section-heading">Section</div>
+            <button id="sectionCollapse" class="section-icon-btn" type="button" title="Collapse section controls" aria-label="Collapse section controls">—</button>
+          </div>
+          <div class="section-row section-axis-row">
+            <button class="section-btn active" data-section-axis="z" type="button">XY</button>
+            <button class="section-btn" data-section-axis="y" type="button">XZ</button>
+            <button class="section-btn" data-section-axis="x" type="button">YZ</button>
+          </div>
+          <div class="section-row section-slider-row">
+            <input id="sectionSlider" class="section-slider" type="range" min="-50" max="50" step="0.1" value="0" />
+          </div>
+        </div>
         <div id="gizmoHost" class="gizmo-host hidden"></div>
         <div id="svgHost" class="svg-host hidden"></div>
         <div id="emptyState" class="empty-state">Open a model file. Then try returning a shape from <code>main</code>.</div>
